@@ -1,0 +1,526 @@
+{
+  "name": "Invoice → QuickBooks Accounts Payable",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "invoice-upload",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "id": "ee3b82f7-abc2-4350-9dda-8cec28584bd7",
+      "name": "Receive Invoice",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        112
+      ],
+      "webhookId": "9335935c-7a62-4962-a3e8-296c1ebc762b"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "joinPages": true
+        }
+      },
+      "id": "d9ff4465-3b0e-4f68-b7c6-28269f69bedb",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.text }}",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "vendor_name",
+              "description": "The name of the vendor / supplier who issued the invoice, exactly as printed",
+              "required": true
+            },
+            {
+              "name": "invoice_number",
+              "description": "The invoice number or reference ID printed on the invoice",
+              "required": true
+            },
+            {
+              "name": "total_amount",
+              "type": "number",
+              "description": "The total amount due on the invoice as a number, no currency symbols or thousands separators",
+              "required": true
+            },
+            {
+              "name": "invoice_date",
+              "description": "The invoice / issue date in YYYY-MM-DD format"
+            },
+            {
+              "name": "due_date",
+              "description": "The payment due date in YYYY-MM-DD format"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1b49c67c-9013-4c0c-a4d9-2d85dfd10943",
+      "name": "Extract Invoice Fields",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "0fa63748-458b-4eae-83d8-ce91fd90b16a",
+      "name": "Extraction Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        528,
+        336
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "vendor",
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {}
+      },
+      "id": "d2d3066d-410f-4692-912c-5c8a8b3bd245",
+      "name": "Find Vendor",
+      "type": "n8n-nodes-base.quickbooks",
+      "typeVersion": 1,
+      "position": [
+        640,
+        -96
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "quickBooksOAuth2Api": {
+          "id": "U1IW6Ttb1uhgRQWQ",
+          "name": "QuickBooks Online account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ok",
+              "leftValue": "={{ $json.Id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2890afff-9714-4470-8158-f0afa5842c19",
+      "name": "Vendor Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "bill",
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {}
+      },
+      "id": "ebef7d9f-092c-4295-879d-779ff0b89452",
+      "name": "Get Existing Bills",
+      "type": "n8n-nodes-base.quickbooks",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        -320
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "quickBooksOAuth2Api": {
+          "id": "U1IW6Ttb1uhgRQWQ",
+          "name": "QuickBooks Online account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dup",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "duplicate",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "aeb36375-4c63-44bb-ada8-b5f4a5e857e6",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2352,
+        -416
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: \"duplicate\", message: \"A bill with a matching vendor, amount and date already exists. Not posted.\", vendor: $json.vendor_name, amount: $json.total_amount, existingBillIds: $json.duplicateBillIds }) }}",
+        "options": {
+          "responseCode": 409
+        }
+      },
+      "id": "04205cc5-8c33-447a-b549-a85028d119c9",
+      "name": "Respond Duplicate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2688,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "bill",
+        "operation": "create",
+        "VendorRef": "={{ $('Vendor Found?').first().json.Id }}",
+        "Line": [
+          {
+            "Amount": "={{ $json.total_amount }}",
+            "DetailType": "AccountBasedExpenseLineDetail",
+            "Description": "=Invoice {{ $json.invoice_number }} from {{ $json.vendor_name }}",
+            "accountId": "44"
+          }
+        ],
+        "additionalFields": {}
+      },
+      "id": "2fad203a-a34d-4a9d-b00d-38e49991dc7c",
+      "name": "Create Bill",
+      "type": "n8n-nodes-base.quickbooks",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        112
+      ],
+      "credentials": {
+        "quickBooksOAuth2Api": {
+          "id": "U1IW6Ttb1uhgRQWQ",
+          "name": "QuickBooks Online account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ \nJSON.stringify({ \n  status: \"created\", \n  billId: $json.Id, \n  vendor: $json.VendorRef.name, \n  amount: $json.TotalAmt \n}) \n}}\n",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "bb33c8f1-422e-4938-860e-8577f8100f7f",
+      "name": "Respond Created",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2144,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: \"vendor_not_found\", message: \"No matching vendor found in QuickBooks. Bill not posted.\", vendor: $(\"Extract Invoice Fields\").first().json.output.vendor_name }) }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "id": "9b481279-b631-441d-b50a-dcd8f0ea5d23",
+      "name": "Respond No Vendor",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1920,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8bc138f8-62af-4338-972d-5f9032c4d63a",
+              "leftValue": "={{ $json.DisplayName }}",
+              "rightValue": "={{ $('Extract Invoice Fields').item.json.output.vendor_name }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        832,
+        -240
+      ],
+      "id": "0cba3e10-7997-4dd6-a2ba-3ea342ad9a76",
+      "name": "Locate Match"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1760,
+        -384
+      ],
+      "id": "b3590ab8-da02-49a5-9cf1-0f995bead261",
+      "name": "Combine Data"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "# 1. Grab everything coming directly from the preceding Merge node using Native Python syntax\nall_incoming_items = _items\n\ninvoice = None\nexisting_bills = []\n\n# 2. Sort the appended stream items out into their respective variables\nfor item in all_incoming_items:\n    # Under native Python mode, n8n passes items as dictionaries containing a \"json\" key\n    payload = item.get(\"json\", {}) if isinstance(item, dict) else {}\n    \n    # If the item has the 'output' dictionary from LangChain, it's our invoice\n    if \"output\" in payload:\n        invoice = payload.get(\"output\")\n    # If it has a QBO Bill marker, append it to the bills checklist array\n    elif \"TotalAmt\" in payload:\n        existing_bills.append(payload)\n\n# Fallback: if the invoice wasn't nested under 'output', find the object containing total_amount\nif not invoice:\n    for item in all_incoming_items:\n        payload = item.get(\"json\", {}) if isinstance(item, dict) else {}\n        if \"total_amount\" in payload:\n            invoice = payload\n            break\n\n# 3. Clean and convert the invoice amount safely\nraw_invoice_amount = invoice.get(\"total_amount\") if invoice else None\nif isinstance(raw_invoice_amount, (int, float)):\n    invoice_amount = float(raw_invoice_amount)\nelse:\n    try:\n        clean_str = \"\".join([c for c in str(raw_invoice_amount or \"\") if c.isdigit() or c in \".-\"])\n        invoice_amount = float(clean_str)\n    except ValueError:\n        invoice_amount = None\n\ninvoice_date = invoice.get(\"invoice_date\") if invoice else None\n\n# 4. Compare the new invoice against EVERY bill in the appended list\nduplicate_bills = []\n\nfor bill in existing_bills:\n    raw_bill_amount = bill.get(\"TotalAmt\")\n    if isinstance(raw_bill_amount, (int, float)):\n        bill_amount = float(raw_bill_amount)\n    else:\n        try:\n            clean_bill_str = \"\".join([c for c in str(raw_bill_amount or \"\") if c.isdigit() or c in \".-\"])\n            bill_amount = float(clean_bill_str)\n        except ValueError:\n            bill_amount = None\n\n    # Check criteria: same total amount (within a penny) AND same invoice date\n    is_same_amount = (bill_amount is not None and invoice_amount is not None and abs(bill_amount - invoice_amount) < 0.01)\n    is_same_date = (invoice_date and bill.get(\"TxnDate\") == invoice_date)\n\n    if is_same_amount and is_same_date:\n        duplicate_bills.append(bill)\n\n# 5. Set the final status indicator string\nstatus = \"duplicate\" if len(duplicate_bills) > 0 else \"ok\"\n\n# 6. Return the data back to n8n matching its mandatory {\"json\": {...}} output dictionary format\nreturn [{\n    \"json\": {\n        \"status\": status,\n        \"vendor_name\": invoice.get(\"vendor_name\") if invoice else \"Unknown\",\n        \"invoice_number\": invoice.get(\"invoice_number\") if invoice else \"Unknown\",\n        \"total_amount\": invoice_amount if invoice_amount is not None else 0.0,\n        \"invoice_date\": invoice_date,\n        \"existing_bill_count_checked\": len(existing_bills),\n        \"duplicate_count_found\": len(duplicate_bills),\n        \"duplicate_bill_ids\": [d.get(\"Id\") for d in duplicate_bills if \"Id\" in d]\n    }\n}]\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2192,
+        -384
+      ],
+      "id": "70f48861-d049-477e-9487-92120d192287",
+      "name": "Check for Duplicate"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receive Invoice": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Extract Invoice Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Invoice Fields": {
+      "main": [
+        [
+          {
+            "node": "Find Vendor",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraction Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract Invoice Fields",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Vendor": {
+      "main": [
+        [
+          {
+            "node": "Locate Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vendor Found?": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Bills",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond No Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Bills": {
+      "main": [
+        [
+          {
+            "node": "Combine Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Respond Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Bill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Bill": {
+      "main": [
+        [
+          {
+            "node": "Respond Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Locate Match": {
+      "main": [
+        [
+          {
+            "node": "Vendor Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Data": {
+      "main": [
+        [
+          {
+            "node": "Check for Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2ad3224e-6651-46bc-bf3f-d59fa94388a7",
+  "meta": {
+    "instanceId": "6568afbc3e0c751fcd162b6783be6c526f7b7443b26b71c25bbdeabad5d04970"
+  },
+  "nodeGroups": [],
+  "id": "jB9NqOZ4COvFeB9q",
+  "tags": []
+}
